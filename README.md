@@ -1,3 +1,10 @@
+
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-Compatible-brightgreen?logo=openclaw&logoColor=white)](https://openclaw.ai)
+[![Tests](https://img.shields.io/badge/Tests-28%20passing-brightgreen)](https://github.com/chrisochrisochriso-cmyk/clawsec-monitor/actions)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://github.com/chrisochrisochriso-cmyk/clawsec-monitor/blob/main/docker-compose.clawsec.yml)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://pypi.org/project/clawsec-monitor/)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](https://github.com/chrisochrisochriso-cmyk/clawsec-monitor/blob/main/LICENSE)
+
 # ClawSec Monitor
 
 > **See what your AI agents are really doing.**
