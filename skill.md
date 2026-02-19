@@ -1,73 +1,97 @@
 # clawsec
 
-You are now acting as the ClawSec Monitor assistant. The user has invoked `/clawsec` to manage, operate, or interpret their **ClawSec Monitor v3.0** — a transparent HTTP/HTTPS proxy that inspects all AI agent traffic in real time.
+**ClawSec Monitor v3.0** — See what your AI agents are really doing.
+
+A transparent HTTP/HTTPS proxy that intercepts, inspects, and logs all AI agent traffic. Detects secrets being leaked, sensitive files being read, and command injection — automatically, in both directions.
 
 ---
 
-## What ClawSec Monitor does
+## Source & verification
 
-ClawSec Monitor sits between AI agents and the internet. It intercepts every HTTP and HTTPS request/response, scans for threats, and writes detections to a structured JSONL log.
-
-**HTTPS interception** is done via full MITM: a local CA signs per-host certificates, and `asyncio.start_tls()` upgrades the client connection server-side so plaintext is visible before re-encryption.
-
-**Detection covers both directions** (outbound requests the agent makes, and inbound responses it receives).
-
----
-
-## Detection patterns
-
-### EXFIL patterns
-| Pattern name | What it matches |
-|---|---|
-| `ai_api_key` | `sk-ant-*`, `sk-live-*`, `sk-gpt-*`, `sk-pro-*` |
-| `aws_access_key` | `AKIA*`, `ASIA*` (AWS access key IDs) |
-| `private_key_pem` | `-----BEGIN RSA/OPENSSH/EC/DSA PRIVATE KEY-----` |
-| `ssh_key_file` | `.ssh/id_rsa`, `.ssh/id_ed25519`, `.ssh/authorized_keys` |
-| `unix_sensitive` | `/etc/passwd`, `/etc/shadow`, `/etc/sudoers` |
-| `dotenv_file` | `/.env`, `/.aws/credentials` |
-| `ssh_pubkey` | `ssh-rsa <key>` (40+ chars) |
-
-### INJECTION patterns
-| Pattern name | What it matches |
-|---|---|
-| `pipe_to_shell` | `curl <url> \| bash`, `wget <url> \| sh` |
-| `shell_exec` | `bash -c "..."`, `sh -i "..."` |
-| `reverse_shell` | `nc <host> <port>` / `netcat` / `ncat` |
-| `destructive_rm` | `rm -rf /` |
-| `ssh_key_inject` | `echo ssh-rsa` (SSH key injection attempt) |
-
----
-
-## All commands
+All code lives in this repository. Before running anything, clone and verify:
 
 ```bash
-# Start the proxy (runs in foreground, Ctrl-C or SIGTERM to stop)
+git clone https://github.com/chrisochrisochriso-cmyk/clawsec-monitor
+cd clawsec-monitor
+
+# Verify file integrity against published checksums
+shasum -a 256 -c <<'EOF'
+71038919afa9978e2c16a4c8113b842abd992a99bebc63f677365f16812950b0  clawsec-monitor.py
+dfb2c3f145ec8713ffe7799088dda1d6c93deb9d26dbb5a999425f34c467abfc  run_tests.py
+f899e2d640b59fdd46c52828c460d8d2a515d7e24220b91a0e87162923c99fda  Dockerfile.clawsec
+a005a2c259d78c14caeb29553ad0be7287c0608aad8e794a7b687b1e44d3a956  docker-compose.clawsec.yml
+f685c09ecf0ad8034b1fa1fbe7e610bbf838fcec373795d7afe56dd2055e0d25  requirements.clawsec.txt
+EOF
+```
+
+All files must print `OK`. Do not proceed if any checksum fails.
+
+---
+
+## Bundled files
+
+| File | Purpose |
+|---|---|
+| `clawsec-monitor.py` | Main proxy script (Python 3.12, 876 lines) |
+| `run_tests.py` | 28-test regression suite |
+| `Dockerfile.clawsec` | Python 3.12-slim container image |
+| `docker-compose.clawsec.yml` | One-command deployment |
+| `requirements.clawsec.txt` | Single dependency: `cryptography>=42.0.0` |
+
+---
+
+## Install
+
+```bash
+pip install cryptography
+```
+
+That is the only external dependency. No other packages are required.
+
+---
+
+## Start
+
+```bash
+# Foreground — Ctrl-C or SIGTERM stops it cleanly
 python3 clawsec-monitor.py start
 
-# Start without HTTPS interception (blind CONNECT tunnel only)
+# Without HTTPS interception (no CA needed)
 python3 clawsec-monitor.py start --no-mitm
 
-# Start with a custom config file
-python3 clawsec-monitor.py start --config /path/to/config.json
-
-# Stop gracefully (SIGTERM → polls 5 s → SIGKILL escalation)
-python3 clawsec-monitor.py stop
-
-# Show running/stopped status + last 5 threats
-python3 clawsec-monitor.py status
-
-# Dump last 10 threats as JSON
-python3 clawsec-monitor.py threats
-
-# Dump last N threats
-python3 clawsec-monitor.py threats --limit 50
+# Custom config
+python3 clawsec-monitor.py start --config config.json
 ```
 
 ---
 
-## HTTPS MITM setup (one-time per machine)
+## Route agent traffic
 
-After first `start`, a CA key and cert are generated at `/tmp/clawsec/ca.crt`.
+Set these environment variables **in the specific process you want to monitor** — not system-wide:
+
+```bash
+export HTTP_PROXY=http://127.0.0.1:8888
+export HTTPS_PROXY=http://127.0.0.1:8888
+```
+
+This scopes interception to that process only.
+
+---
+
+## HTTPS interception (optional)
+
+ClawSec generates a local CA on first start at `/tmp/clawsec/ca.crt`.
+
+**Preferred: per-process trust (no system changes, no sudo)**
+
+```bash
+export REQUESTS_CA_BUNDLE=/tmp/clawsec/ca.crt   # Python requests
+export SSL_CERT_FILE=/tmp/clawsec/ca.crt         # httpx / httpcore
+export NODE_EXTRA_CA_CERTS=/tmp/clawsec/ca.crt   # Node.js
+export CURL_CA_BUNDLE=/tmp/clawsec/ca.crt         # curl
+```
+
+**If system-wide trust is needed (requires sudo, review carefully):**
 
 ```bash
 # macOS
@@ -77,31 +101,82 @@ sudo security add-trusted-cert -d -r trustRoot \
 # Ubuntu / Debian
 sudo cp /tmp/clawsec/ca.crt /usr/local/share/ca-certificates/clawsec.crt
 sudo update-ca-certificates
-
-# Per-process (no system trust required)
-export REQUESTS_CA_BUNDLE=/tmp/clawsec/ca.crt   # Python requests
-export SSL_CERT_FILE=/tmp/clawsec/ca.crt         # httpx
-export NODE_EXTRA_CA_CERTS=/tmp/clawsec/ca.crt   # Node.js
-export CURL_CA_BUNDLE=/tmp/clawsec/ca.crt         # curl
 ```
 
-Then route agent traffic through the proxy:
+> The CA private key is stored at `/tmp/clawsec/ca.key` (mode 0600, directory 0700).
+> It never leaves your machine. Treat it like any TLS private key.
+> Use `--no-mitm` if you do not want HTTPS interception at all.
+
+---
+
+## Commands
 
 ```bash
-export HTTP_PROXY=http://127.0.0.1:8888
-export HTTPS_PROXY=http://127.0.0.1:8888
+python3 clawsec-monitor.py stop              # graceful shutdown
+python3 clawsec-monitor.py status            # running/stopped + last 5 threats
+python3 clawsec-monitor.py threats           # last 10 threats as JSON
+python3 clawsec-monitor.py threats --limit N
 ```
 
 ---
 
-## Config file reference
+## Detection patterns
+
+### EXFIL (data leaving the agent)
+| Pattern | Matches |
+|---|---|
+| `ai_api_key` | `sk-ant-*`, `sk-live-*`, `sk-gpt-*`, `sk-pro-*` |
+| `aws_access_key` | `AKIA*`, `ASIA*` |
+| `private_key_pem` | `-----BEGIN RSA/OPENSSH/EC/DSA PRIVATE KEY-----` |
+| `ssh_key_file` | `.ssh/id_rsa`, `.ssh/id_ed25519`, `.ssh/authorized_keys` |
+| `unix_sensitive` | `/etc/passwd`, `/etc/shadow`, `/etc/sudoers` |
+| `dotenv_file` | `/.env`, `/.aws/credentials` |
+| `ssh_pubkey` | `ssh-rsa <key>` (40+ chars) |
+
+### INJECTION (commands arriving at the agent)
+| Pattern | Matches |
+|---|---|
+| `pipe_to_shell` | `curl <url> \| bash`, `wget <url> \| sh` |
+| `shell_exec` | `bash -c "..."`, `sh -i "..."` |
+| `reverse_shell` | `nc <host> <port>`, `netcat`, `ncat` |
+| `destructive_rm` | `rm -rf /` |
+| `ssh_key_inject` | `echo ssh-rsa` (SSH key injection) |
+
+---
+
+## Threat log format
+
+`/tmp/clawsec/threats.jsonl` — one JSON object per line:
+
+```json
+{
+  "direction":   "outbound",
+  "protocol":    "https",
+  "threat_type": "EXFIL",
+  "pattern":     "ai_api_key",
+  "snippet":     "Authorization: Bearer sk-ant-api01-...",
+  "source":      "127.0.0.1",
+  "dest":        "api.anthropic.com:443",
+  "timestamp":   "2026-02-19T13:41:59.587248+00:00"
+}
+```
+
+- `direction` — `outbound` (agent → internet) or `inbound` (internet → agent)
+- `threat_type` — `EXFIL` or `INJECTION`
+- `pattern` — named rule that fired (see tables above)
+- `snippet` — up to 200 chars of surrounding context
+
+Deduplication: same `(pattern, dest, direction)` suppressed for 60 seconds.
+Rotating log also at `/tmp/clawsec/clawsec.log` (10 MB × 3 backups).
+
+---
+
+## Config reference
 
 ```json
 {
   "proxy_host":          "127.0.0.1",
   "proxy_port":          8888,
-  "gateway_local_port":  18790,
-  "gateway_target_port": 18789,
   "log_dir":             "/tmp/clawsec",
   "log_level":           "INFO",
   "max_scan_bytes":      65536,
@@ -110,88 +185,44 @@ export HTTPS_PROXY=http://127.0.0.1:8888
 }
 ```
 
-All keys are optional. Defaults are shown above.
-
----
-
-## Threat log format
-
-Threats are appended to `/tmp/clawsec/threats.jsonl` (one JSON object per line):
-
-```json
-{
-  "direction":  "outbound",
-  "protocol":   "https",
-  "threat_type": "EXFIL",
-  "pattern":    "ai_api_key",
-  "snippet":    "Authorization: Bearer sk-ant-api01-...",
-  "source":     "127.0.0.1",
-  "dest":       "api.anthropic.com:443",
-  "timestamp":  "2026-02-19T13:41:59.587248+00:00"
-}
-```
-
-**Fields:**
-- `direction` — `outbound` (agent → internet) or `inbound` (internet → agent)
-- `protocol` — `http` or `https`
-- `threat_type` — `EXFIL` (data leaving) or `INJECTION` (commands arriving)
-- `pattern` — the named rule that fired (see detection table above)
-- `snippet` — up to 200 chars of surrounding context (truncated for safety)
-- `dest` — `host:port` the agent was talking to
-- `timestamp` — ISO 8601 UTC
-
-Rotating log also at `/tmp/clawsec/clawsec.log` (10 MB × 3 backups).
-Deduplication: same `(pattern, dest, direction)` suppressed for 60 seconds.
-
 ---
 
 ## Docker
 
 ```bash
-# Start
 docker compose -f docker-compose.clawsec.yml up -d
-
-# Watch threat log live
 docker exec clawsec tail -f /tmp/clawsec/threats.jsonl
-
-# Query threats
-docker exec clawsec python3 clawsec-monitor.py threats
-
-# Stop
 docker compose -f docker-compose.clawsec.yml down
 ```
 
-CA persists in the `clawsec_data` Docker volume across restarts.
+The CA persists in the `clawsec_data` volume across restarts.
 
 ---
 
-## Files
+## Test suite
 
-| File | Purpose |
-|---|---|
-| `clawsec-monitor.py` | Main script (876 lines) |
-| `run_tests.py` | 28-test regression suite |
-| `Dockerfile.clawsec` | Python 3.12-slim image |
-| `docker-compose.clawsec.yml` | One-command deploy + healthcheck |
-| `requirements.clawsec.txt` | `cryptography>=42.0.0` |
+```bash
+python3 run_tests.py   # 28/28 tests, ~5 seconds
+```
 
 ---
 
 ## How to help the user
 
-When `/clawsec` is invoked, determine what the user needs and assist accordingly:
+When `/clawsec` is invoked, work out what the user needs and assist accordingly:
 
-1. **Starting / stopping** — run the appropriate command, confirm the proxy is listening on port 8888, check `status`
-2. **Interpreting threats** — run `python3 clawsec-monitor.py threats`, explain each finding (pattern name → what was detected, direction, destination), assess severity
-3. **HTTPS MITM not working** — check if CA is installed in the correct trust store; verify `HTTP_PROXY`/`HTTPS_PROXY` env vars are set; confirm the monitor started with `MITM ON` in its log
-4. **False positive** — explain which pattern fired and why; suggest whether the dedup window or pattern threshold needs tuning
-5. **Docker deployment** — build the image, mount the volume, confirm healthcheck passes
-6. **Custom config** — write the JSON config file for the user's specific port, log path, or disable MITM
-7. **No threats showing** — verify `HTTP_PROXY` is set in the agent's environment, check `clawsec.log` for errors, confirm `threats.jsonl` exists
+1. **First run** — verify checksums, install `cryptography`, start the monitor, confirm port 8888 is listening
+2. **Interpreting threats** — run `threats`, explain each finding: what pattern fired, which direction, what destination, severity assessment
+3. **HTTPS MITM not working** — check `status` for `MITM ON`; verify the correct CA trust env var is set for the agent runtime; confirm `HTTP_PROXY`/`HTTPS_PROXY` are in the agent's environment
+4. **False positive** — explain which pattern fired and the surrounding snippet; identify whether it is a genuine match or context noise
+5. **Docker deploy** — verify checksums, build image, run compose, confirm healthcheck passes
+6. **No threats appearing** — confirm `HTTP_PROXY` is set in the agent process, check `clawsec.log` for bind/TLS errors, verify `threats.jsonl` is being written
+7. **Stopping / cleanup** — `stop`, optionally remove `/tmp/clawsec` directory and uninstall the CA from the trust store
 
-Always check `python3 clawsec-monitor.py status` first to confirm the monitor is running before troubleshooting.
+Always run `python3 clawsec-monitor.py status` first before troubleshooting.
 
 ---
 
-*ClawSec Monitor v3.0 — See what your AI agents are really doing.*
-*GitHub: https://github.com/chrisochrisochriso-cmyk/clawsec-monitor*
+*Author: Chris Alley (paperknight)*
+*Source: https://github.com/chrisochrisochriso-cmyk/clawsec-monitor*
+*License: MIT*
