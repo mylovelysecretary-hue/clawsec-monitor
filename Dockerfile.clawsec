@@ -1,8 +1,5 @@
-# ── Stage 1: dependencies ────────────────────────────────────────────────────
-FROM python:3.12-slim AS base
+FROM python:3.12-slim
 
-# iproute2 → ss (Linux SSH conn detection)
-# net-tools → netstat (fallback; also available on macOS native)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         iproute2 \
         net-tools \
@@ -12,21 +9,17 @@ WORKDIR /app
 COPY requirements.clawsec.txt .
 RUN pip install --no-cache-dir -r requirements.clawsec.txt
 
-# ── Stage 2: final image ─────────────────────────────────────────────────────
-FROM base AS final
-
 COPY clawsec-monitor.py .
 
-# HTTP(S) intercept proxy
+# Fix: Change 127.0.0.1 to 0.0.0.0 for external access
+RUN sed -i 's/"127.0.0.1"/"0.0.0.0"/g' clawsec-monitor.py
+
 EXPOSE 8888
 
-# PID file · threats.jsonl · clawsec.log (rotating) · CA key+cert
 VOLUME ["/tmp/clawsec"]
 
-# Drop to non-root
 RUN useradd -r -u 1001 -g root clawsec
 USER clawsec
 
-# 'start' already runs in the foreground (asyncio.run blocks until SIGTERM)
 ENTRYPOINT ["python3", "clawsec-monitor.py"]
 CMD ["start"]
