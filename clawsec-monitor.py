@@ -336,7 +336,7 @@ class HTTPProxy:
         self.mitm = mitm and (_ca_key is not None)
 
     async def start(self) -> None:
-        server = await asyncio.start_server(self._handle, "0.0.0.1", self.port)
+        server = await asyncio.start_server(self._handle, "0.0.0.0", self.port)
         mode = "MITM" if self.mitm else "tunnel"
         _log.info("HTTP proxy on 127.0.0.1:%d (HTTPS mode: %s)", self.port, mode)
         async with server:
