@@ -55,4 +55,4 @@ if __name__ == "__main__":
     if cmd == "start": start_clawsec(); HTTPServer(("0.0.0.0", PORT), APIHandler).serve_forever()
     elif cmd == "stop": stop_clawsec()
     elif cmd == "status": print(get_status())
-    elif cmd == "threats": print(json. dumps (get_threats), indent=2))
+    elif cmd == "threats": print(json.dumps (get_threats(), indent=2))
