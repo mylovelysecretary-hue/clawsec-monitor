@@ -11,9 +11,6 @@ RUN pip install --no-cache-dir -r requirements.clawsec.txt
 
 COPY clawsec-monitor.py .
 
-# Fix: Change 127.0.0.1 to 0.0.0.0 for external access
-RUN sed -i 's/"127.0.0.1"/"0.0.0.0"/g' clawsec-monitor.py
-
 EXPOSE 8888
 
 VOLUME ["/tmp/clawsec"]
