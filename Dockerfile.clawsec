@@ -13,10 +13,12 @@ COPY clawsec-monitor.py .
 
 EXPOSE 8888
 
-VOLUME ["/tmp/clawsec"]
+# Change from /tmp/clawsec to /home/node
+VOLUME ["/home/node"]
 
 RUN useradd -r -u 1001 -g root clawsec
 USER clawsec
 
 ENTRYPOINT ["python3", "clawsec-monitor.py"]
+
 CMD ["start"]
