@@ -13,7 +13,6 @@ COPY clawsec-monitor.py .
 
 EXPOSE 8888
 
-# Change from /tmp/clawsec to /home/node
 VOLUME ["/home/node"]
 
 RUN useradd -r -u 1001 -g root clawsec
