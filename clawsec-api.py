@@ -3,10 +3,22 @@ import os, sys, json, subprocess, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = int(os.environ.get("PORT", 8080))
-LOG_DIR = "/home/node/.clawsec"
+LOG_DIR = os.environ.get("CLAWSEC_LOG_DIR", "/home/node/.clawsec")
+API_KEY = os.environ.get("CLAWSEC_API_KEY", "")
 PID_FILE = f"{LOG_DIR}/clawsec.pid"
 THREATS_FILE = f"{LOG_DIR}/threats.jsonl"
 os.makedirs(LOG_DIR, exist_ok=True)
+
+def require_auth(handler):
+    if not API_KEY:
+        return True
+    provided = handler.headers.get("X-API-Key", "")
+    if provided != API_KEY:
+        handler.send_response(401)
+        handler.end_headers()
+        handler.wfile.write(b'{"error": "Unauthorized"}')
+        return False
+    return True
 
 def start_clawsec():
     if os.path.exists(PID_FILE): return
@@ -31,28 +43,72 @@ def get_threats(limit=10):
 
 class APIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path in ["/health", "/health/"]:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"healthy": is_running()}).encode())
+            return
+        
+        if self.path in ["/", ""]:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"service": "ClawSec", "endpoints": ["/health", "/status", "/threats", "/ca.crt"], "auth": bool(API_KEY)}).encode())
+            return
+        
+        if self.path in ["/ca", "/ca.crt", "/ca.crt/"]:
+            ca_path = f"{LOG_DIR}/ca.crt"
+            if os.path.exists(ca_path):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-x509-ca-cert")
+                self.send_header("Content-Disposition", "attachment; filename=ca.crt")
+                self.end_headers()
+                self.wfile.write(open(ca_path).read().encode())
+            else:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "CA cert not found"}).encode())
+            return
+        
+        if not require_auth(self):
+            return
+        
         if self.path in ["/status", "/status/"]:
-            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
             self.wfile.write(json.dumps({"status": "running", "output": get_status()}).encode())
         elif self.path.startswith("/threats"):
             limit = 10
             if "?" in self.path:
-                try: limit = int(self.path.split("?")[1].split("=")[1])
-                except: pass
-            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+                try:
+                    limit = int(self.path.split("?")[1].split("=")[1])
+                except:
+                    pass
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
             self.wfile.write(json.dumps(get_threats(limit)).encode())
-        elif self.path in ["/health", "/health/"]:
-            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
-            self.wfile.write(json.dumps({"healthy": is_running()}).encode())
-        elif self.path in ["/", ""]:
-            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
-            self.wfile.write(json.dumps({"service": "ClawSec", "endpoints": ["/health", "/status", "/threats"]}).encode())
-        else: self.send_response(404); self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2: print("Usage: python3 clawsec-api.py [start|stop|status|threats]"); sys.exit(1)
+    if len(sys.argv) < 2:
+        print("Usage: python3 clawsec-api.py [start|stop|status|threats]")
+        sys.exit(1)
+    
     cmd = sys.argv[1]
-    if cmd == "start": start_clawsec(); HTTPServer(("0.0.0.0", PORT), APIHandler).serve_forever()
-    elif cmd == "stop": stop_clawsec()
-    elif cmd == "status": print(get_status())
-    elif cmd == "threats": print(json.dumps(get_threats(), indent=2))
+    if cmd == "start":
+        start_clawsec()
+        print(f"Starting ClawSec API on port {PORT}")
+        print(f"API Key: {'Configured' if API_KEY else 'Not set (open)'}")
+        HTTPServer(("0.0.0.0", PORT), APIHandler).serve_forever()
+    elif cmd == "stop":
+        stop_clawsec()
+    elif cmd == "status":
+        print(get_status())
+    elif cmd == "threats":
+        print(json.dumps(get_threats(), indent=2))
