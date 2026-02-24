@@ -16,8 +16,8 @@ import time
 from pathlib import Path
 
 MONITOR = Path(__file__).parent / "clawsec-monitor.py"
-THREAT_LOG = Path("/tmp/clawsec/threats.jsonl")
-PID_FILE = Path("/tmp/clawsec/monitor.pid")
+THREAT_LOG = Path("/home/node/.clawsec/threats.jsonl")
+PID_FILE = Path("/home/node/.clawsec/monitor.pid")
 PROXY_PORT = 8888
 
 PASS = "\033[32mPASS\033[0m"
