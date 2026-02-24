@@ -3,7 +3,7 @@ import os, sys, json, subprocess, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = int(os.environ.get("PORT", 8080))
-LOG_DIR = "/tmp/clawsec"
+LOG_DIR = "/home/node/.clawsec"
 PID_FILE = f"{LOG_DIR}/clawsec.pid"
 THREATS_FILE = f"{LOG_DIR}/threats.jsonl"
 os.makedirs(LOG_DIR, exist_ok=True)
