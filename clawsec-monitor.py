@@ -19,9 +19,9 @@ Usage:
 HTTPS MITM setup (one-time):
     # After first start, install the generated CA into your trust store:
     # macOS:
-    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /home/node/ca.crt
+    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /home/node/.clawsec/ca.crt
     # Linux:
-    sudo cp /home/node/ca.crt /usr/local/share/ca-certificates/clawsec.crt && sudo update-ca-certificates
+    sudo cp /home/node/.clawsec/ca.crt /usr/local/share/ca-certificates/clawsec.crt && sudo update-ca-certificates
     # Then route traffic:
     export http_proxy=http://localhost:8888 HTTPS_PROXY=http://localhost:8888
 """
@@ -66,7 +66,7 @@ DEFAULT_CONFIG: dict = {
     "http_proxy_port": 8888,
     "gateway_local_port": 18790,
     "gateway_target_port": 18789,
-    "log_dir": "/home/node",
+    "log_dir": "/home/node/.clawsec",
     "log_level": "INFO",
     "max_scan_bytes": 65536,
     "ssh_poll_interval": 10,
@@ -147,7 +147,7 @@ def scan(text: str, direction: str, source: str = "", dest: str = "",
 # ── Logging / threat persistence ──────────────────────────────────────────────
 
 _log = logging.getLogger("clawsec")
-_threat_path: Path = Path("/home/node/threats.jsonl")
+_threat_path: Path = Path("/home/node/.clawsec/threats.jsonl")
 _write_lock: asyncio.Lock
 _dedup_window: float = 60.0
 _dedup_seen: dict[str, float] = {}     # key -> last emit timestamp
@@ -761,7 +761,7 @@ async def run(cfg: dict) -> None:
 
 # ── PID helpers ───────────────────────────────────────────────────────────────
 
-_PID_FILE = Path("/home/node/monitor.pid")
+_PID_FILE = Path("/home/node/.clawsec/monitor.pid")
 
 
 def _pid_running() -> Optional[int]:
