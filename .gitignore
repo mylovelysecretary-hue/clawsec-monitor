@@ -1,5 +1,5 @@
 # Runtime artifacts — never commit
-/tmp/clawsec/
+/home/node/.clawsec/
 *.pid
 threats.jsonl
 clawsec.log*
