@@ -80,15 +80,15 @@ This scopes interception to that process only.
 
 ## HTTPS interception (optional)
 
-ClawSec generates a local CA on first start at `/tmp/clawsec/ca.crt`.
+ClawSec generates a local CA on first start at `/home/node/.clawsec/ca.crt`.
 
 **Preferred: per-process trust (no system changes, no sudo)**
 
 ```bash
-export REQUESTS_CA_BUNDLE=/tmp/clawsec/ca.crt   # Python requests
-export SSL_CERT_FILE=/tmp/clawsec/ca.crt         # httpx / httpcore
-export NODE_EXTRA_CA_CERTS=/tmp/clawsec/ca.crt   # Node.js
-export CURL_CA_BUNDLE=/tmp/clawsec/ca.crt         # curl
+export REQUESTS_CA_BUNDLE=/home/node/.clawsec/ca.crt   # Python requests
+export SSL_CERT_FILE=/home/node/.clawsec/ca.crt         # httpx / httpcore
+export NODE_EXTRA_CA_CERTS=/home/node/.clawsec/ca.crt   # Node.js
+export CURL_CA_BUNDLE=/home/node/.clawsec/ca.crt         # curl
 ```
 
 **If system-wide trust is needed (requires sudo, review carefully):**
@@ -96,14 +96,14 @@ export CURL_CA_BUNDLE=/tmp/clawsec/ca.crt         # curl
 ```bash
 # macOS
 sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain /tmp/clawsec/ca.crt
+  -k /Library/Keychains/System.keychain /home/node/.clawsec/ca.crt
 
 # Ubuntu / Debian
-sudo cp /tmp/clawsec/ca.crt /usr/local/share/ca-certificates/clawsec.crt
+sudo cp /home/node/.clawsec/ca.crt /usr/local/share/ca-certificates/clawsec.crt
 sudo update-ca-certificates
 ```
 
-> The CA private key is stored at `/tmp/clawsec/ca.key` (mode 0600, directory 0700).
+> The CA private key is stored at `/home/node/.clawsec/ca.key` (mode 0600, directory 0700).
 > It never leaves your machine. Treat it like any TLS private key.
 > Use `--no-mitm` if you do not want HTTPS interception at all.
 
@@ -146,7 +146,7 @@ python3 clawsec-monitor.py threats --limit N
 
 ## Threat log format
 
-`/tmp/clawsec/threats.jsonl` — one JSON object per line:
+`/home/node/.clawsec/threats.jsonl` — one JSON object per line:
 
 ```json
 {
@@ -167,7 +167,7 @@ python3 clawsec-monitor.py threats --limit N
 - `snippet` — up to 200 chars of surrounding context
 
 Deduplication: same `(pattern, dest, direction)` suppressed for 60 seconds.
-Rotating log also at `/tmp/clawsec/clawsec.log` (10 MB × 3 backups).
+Rotating log also at `/home/node/.clawsec/clawsec.log` (10 MB × 3 backups).
 
 ---
 
@@ -177,7 +177,7 @@ Rotating log also at `/tmp/clawsec/clawsec.log` (10 MB × 3 backups).
 {
   "proxy_host":          "127.0.0.1",
   "proxy_port":          8888,
-  "log_dir":             "/tmp/clawsec",
+  "log_dir":             "/home/node/.clawsec",
   "log_level":           "INFO",
   "max_scan_bytes":      65536,
   "enable_mitm":         true,
@@ -191,7 +191,7 @@ Rotating log also at `/tmp/clawsec/clawsec.log` (10 MB × 3 backups).
 
 ```bash
 docker compose -f docker-compose.clawsec.yml up -d
-docker exec clawsec tail -f /tmp/clawsec/threats.jsonl
+docker exec clawsec tail -f /home/node/.clawsec/threats.jsonl
 docker compose -f docker-compose.clawsec.yml down
 ```
 
@@ -217,7 +217,7 @@ When `/clawsec` is invoked, work out what the user needs and assist accordingly:
 4. **False positive** — explain which pattern fired and the surrounding snippet; identify whether it is a genuine match or context noise
 5. **Docker deploy** — verify checksums, build image, run compose, confirm healthcheck passes
 6. **No threats appearing** — confirm `HTTP_PROXY` is set in the agent process, check `clawsec.log` for bind/TLS errors, verify `threats.jsonl` is being written
-7. **Stopping / cleanup** — `stop`, optionally remove `/tmp/clawsec` directory and uninstall the CA from the trust store
+7. **Stopping / cleanup** — `stop`, optionally remove `/home/node/.clawsec` directory and uninstall the CA from the trust store
 
 Always run `python3 clawsec-monitor.py status` first before troubleshooting.
 
