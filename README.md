@@ -64,19 +64,19 @@ docker compose -f docker-compose.clawsec.yml up -d
 ClawSec generates a local CA on first start and performs full HTTPS MITM — so even encrypted agent traffic is visible. You trust the CA once; after that all HTTPS is inspected transparently.
 
 ```
-CA certificate: /tmp/clawsec/ca.crt
+CA certificate: /home/node/.clawsec/ca.crt
 ```
 
 **Trust the CA for your agent runtime:**
 
 | Runtime | Command |
 |---|---|
-| macOS system | `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/clawsec/ca.crt` |
-| Ubuntu/Debian | `sudo cp /tmp/clawsec/ca.crt /usr/local/share/ca-certificates/clawsec.crt && sudo update-ca-certificates` |
-| Python `requests` | `export REQUESTS_CA_BUNDLE=/tmp/clawsec/ca.crt` |
-| Python `httpx` | `export SSL_CERT_FILE=/tmp/clawsec/ca.crt` |
-| Node.js | `export NODE_EXTRA_CA_CERTS=/tmp/clawsec/ca.crt` |
-| curl | `export CURL_CA_BUNDLE=/tmp/clawsec/ca.crt` |
+| macOS system | `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /home/node/.clawsec/ca.crt` |
+| Ubuntu/Debian | `sudo cp /home/node/.clawsec/ca.crt /usr/local/share/ca-certificates/clawsec.crt && sudo update-ca-certificates` |
+| Python `requests` | `export REQUESTS_CA_BUNDLE=/home/node/.clawsec/ca.crt` |
+| Python `httpx` | `export SSL_CERT_FILE=/home/node/.clawsec/ca.crt` |
+| Node.js | `export NODE_EXTRA_CA_CERTS=/home/node/.clawsec/ca.crt` |
+| curl | `export CURL_CA_BUNDLE=/home/node/.clawsec/ca.crt` |
 
 Prefer not to intercept HTTPS? Use blind tunnel mode:
 
@@ -101,7 +101,7 @@ python3 clawsec-monitor.py threats --limit 50
 
 ## Threat log
 
-Every detection is appended to `/tmp/clawsec/threats.jsonl`:
+Every detection is appended to `/home/node/.clawsec/threats.jsonl`:
 
 ```json
 {
@@ -116,7 +116,7 @@ Every detection is appended to `/tmp/clawsec/threats.jsonl`:
 }
 ```
 
-The same events are mirrored to `/tmp/clawsec/clawsec.log` (rotating, 10 MB × 3 backups).
+The same events are mirrored to `/home/node/.clawsec/clawsec.log` (rotating, 10 MB × 3 backups).
 
 **Deduplication**: the same `(pattern, dest, direction)` triple is suppressed for 60 seconds to prevent log flooding.
 
@@ -132,7 +132,7 @@ python3 clawsec-monitor.py start --config /etc/clawsec/config.json
 {
   "proxy_host": "127.0.0.1",
   "proxy_port": 8888,
-  "log_dir": "/tmp/clawsec",
+  "log_dir": "/home/node/.clawsec",
   "log_level": "INFO",
   "max_scan_bytes": 65536,
   "enable_mitm": true,
@@ -151,7 +151,7 @@ All keys are optional — the defaults above apply if omitted.
 docker compose -f docker-compose.clawsec.yml up -d
 
 # Stream threat log live
-docker exec clawsec tail -f /tmp/clawsec/threats.jsonl
+docker exec clawsec tail -f /home/node/.clawsec/threats.jsonl
 
 # Query threats
 docker exec clawsec python3 clawsec-monitor.py threats
@@ -168,9 +168,9 @@ The generated CA persists in the `clawsec_data` Docker volume across container r
 environment:
   - HTTP_PROXY=http://clawsec:8888
   - HTTPS_PROXY=http://clawsec:8888
-  - REQUESTS_CA_BUNDLE=/tmp/clawsec/ca.crt
+  - REQUESTS_CA_BUNDLE=/home/node/.clawsec/ca.crt
 volumes:
-  - clawsec_data:/tmp/clawsec:ro
+  - clawsec_data:/home/node/.clawsec:ro
 ```
 
 ---
@@ -213,7 +213,7 @@ AI Agent
 
 ## Security notes
 
-- The CA private key lives at `/tmp/clawsec/ca.key` (mode 0600, directory 0700). Treat it like any TLS private key.
+- The CA private key lives at `/home/node/.clawsec/ca.key` (mode 0600, directory 0700). Treat it like any TLS private key.
 - Do **not** trust this CA system-wide on production machines — only in the processes you intend to monitor.
 - Log snippets are kept short to avoid writing entire secrets to disk.
 - Use `--no-mitm` if you cannot or do not want to install the CA.
