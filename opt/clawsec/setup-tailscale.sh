@@ -97,7 +97,7 @@ else
         --authkey="$TS_AUTHKEY" \
         --hostname="$TS_HOSTNAME" \
         --accept-dns=false \
-        ${Ts_EXTRA_ARGS}
+        ${TS_EXTRA_ARGS}
     echo "Tailscale authenticated."
 fi
 
