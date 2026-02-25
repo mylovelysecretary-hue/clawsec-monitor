@@ -102,7 +102,6 @@ else
 fi
 
 echo "Exposing ClawSec API via Tailscale Serve..."
-"$BIN_DIR/tailscale" --socket="$SOCK" serve --tcp=8080 off 2>/dev/null || true
 #"$BIN_DIR/tailscale" --socket="$SOCK" serve --bg --tcp 8080 http://localhost:8080
 
 echo ""
